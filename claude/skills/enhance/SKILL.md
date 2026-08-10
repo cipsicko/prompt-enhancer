@@ -1,6 +1,6 @@
 ---
 name: enhance
-description: Turn a rough prompt into one polished, reusable prompt — asks clarifying questions first, then returns a single copy-pasteable prompt and stops. Use when the user wants a prompt improved rather than executed. Triggers on "enhance this prompt", "make this prompt better", "refine/rewrite my prompt", "turn this into a reusable prompt", "help me write a prompt for X".
+description: Turns a rough prompt into one polished, reusable prompt — asks clarifying questions first, then returns a single copy-pasteable prompt and stops without executing the task. Use whenever the user wants a prompt written, improved, refined, rewritten, enhanced, or "made better" rather than carried out, or wants a reusable/template prompt for a recurring task. Triggers on "enhance this prompt", "improve/refine/rewrite my prompt", "make this prompt better", "write me a prompt for X", "turn this into a reusable prompt", "prompt template".
 ---
 
 # Prompt Enhancer
