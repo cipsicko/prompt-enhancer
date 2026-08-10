@@ -11,6 +11,7 @@ CLAUDE_SKILL="$HOME/.claude/skills/enhance/SKILL.md"
 DO_CLAUDE=1
 DO_COPILOT=1
 DRY_RUN=0
+NO_COLOR_FLAG=0
 RC=""
 
 usage() {
@@ -22,6 +23,7 @@ Usage: ./install.sh [options]
   --rc <path>      Shell rc file to append the function to (default: ~/.zshrc, or
                    ~/.bashrc when $SHELL is bash)
   --dry-run        Print what would change without touching anything
+  --no-color       Plain output, no colour (also honours the NO_COLOR env var)
   -h, --help       Show this help
 EOF
 }
@@ -31,6 +33,7 @@ while [ $# -gt 0 ]; do
     --claude-only)  DO_COPILOT=0 ;;
     --copilot-only) DO_CLAUDE=0 ;;
     --dry-run)      DRY_RUN=1 ;;
+    --no-color)     NO_COLOR_FLAG=1 ;;
     --rc)           shift; RC="${1:-}"; [ -n "$RC" ] || { echo "--rc needs a path" >&2; exit 1; } ;;
     -h|--help)      usage; exit 0 ;;
     *)              echo "Unknown option: $1" >&2; usage >&2; exit 1 ;;
@@ -45,14 +48,59 @@ if [ -z "$RC" ]; then
   esac
 fi
 
+# ---------- presentation ----------
+
+# Colour only for a real terminal: not piped, not NO_COLOR, not TERM=dumb, not --no-color.
+if [ "$NO_COLOR_FLAG" -eq 0 ] && [ -t 1 ] && [ -z "${NO_COLOR:-}" ] && [ "${TERM:-}" != "dumb" ]; then
+  C_RESET=$'\033[0m'; C_BOLD=$'\033[1m'; C_DIM=$'\033[2m'
+  C_GREEN=$'\033[32m'; C_CYAN=$'\033[36m'; C_YELLOW=$'\033[33m'
+else
+  C_RESET=''; C_BOLD=''; C_DIM=''
+  C_GREEN=''; C_CYAN=''; C_YELLOW=''
+fi
+
+# Unicode marks need a UTF-8 locale; fall back to ASCII so nothing renders as mojibake.
+case "${LC_ALL:-${LC_CTYPE:-${LANG:-}}}" in
+  *UTF-8*|*utf-8*|*UTF8*|*utf8*)
+    S_OK='✓'; S_NEW='+'; S_UPD='↻'; S_SKIP='•'; S_WARN='⚠'; S_ARROW='→'; S_DASH='—' ;;
+  *)
+    S_OK='[ok]'; S_NEW='[+]'; S_UPD='[~]'; S_SKIP='[-]'; S_WARN='[!]'; S_ARROW='->'; S_DASH='-' ;;
+esac
+
 say() { printf '%s\n' "$1"; }
+section() { printf '%s%s%s\n' "$C_BOLD" "$1" "$C_RESET"; }
+tilde() { printf '%s' "${1/#$HOME/~}"; }
+
+# mark <ok|new|upd|skip|warn> <subject> [dim status]
+mark() {
+  local sym color
+  case "$1" in
+    ok)   sym="$S_OK";   color="$C_GREEN"  ;;
+    new)  sym="$S_NEW";  color="$C_GREEN"  ;;
+    upd)  sym="$S_UPD";  color="$C_CYAN"   ;;
+    skip) sym="$S_SKIP"; color="$C_DIM"    ;;
+    warn) sym="$S_WARN"; color="$C_YELLOW" ;;
+  esac
+  if [ -n "${3:-}" ]; then
+    printf '  %s%s%s %s  %s%s%s\n' "$color" "$sym" "$C_RESET" "$2" "$C_DIM" "$3" "$C_RESET"
+  else
+    printf '  %s%s%s %s\n' "$color" "$sym" "$C_RESET" "$2"
+  fi
+}
+
 run() { [ "$DRY_RUN" -eq 1 ] || "$@"; }
+
+# verb <what happened> <what would happen> — keeps dry-run output in the future tense
+verb() { if [ "$DRY_RUN" -eq 1 ]; then printf '%s' "$2"; else printf '%s' "$1"; fi; }
+
+# ---------- install steps ----------
 
 # Copy src -> dest, backing up an existing dest that differs.
 install_file() {
-  local src="$1" dest="$2" label="$3"
+  local src="$1" dest="$2" label
+  label="$(tilde "$dest")"
   if [ -f "$dest" ] && cmp -s "$src" "$dest"; then
-    say "  = $label already up to date"
+    mark ok "$label" "up to date"
     return
   fi
   run mkdir -p "$(dirname "$dest")"
@@ -60,43 +108,46 @@ install_file() {
     local bak n=1
     bak="$dest.bak"
     while [ -e "$bak" ]; do n=$((n + 1)); bak="$dest.bak-$n"; done
-    say "  ~ $label differs — backing up to $(basename "$bak")"
     run cp "$dest" "$bak"
     run cp "$src" "$dest"
-    say "  + $label updated"
+    mark upd "$label" "$(verb updated 'would be updated') (backup: $(basename "$bak"))"
   else
     run cp "$src" "$dest"
-    say "  + $label installed"
+    mark new "$label" "$(verb installed 'would be installed')"
   fi
 }
 
-say "Prompt Enhancer"
-[ "$DRY_RUN" -eq 1 ] && say "(dry run — nothing will be written)"
+printf '%sPrompt Enhancer%s\n' "$C_BOLD" "$C_RESET"
+[ "$DRY_RUN" -eq 1 ] && printf '%s(dry run %s nothing will be written)%s\n' "$C_DIM" "$S_DASH" "$C_RESET"
+say ""
 
-say "Shared instructions:"
-install_file "$REPO/enhance.md" "$CONFIG_DIR/enhance.md" "$CONFIG_DIR/enhance.md"
+section "Shared instructions"
+install_file "$REPO/enhance.md" "$CONFIG_DIR/enhance.md"
 
 if [ "$DO_CLAUDE" -eq 1 ]; then
-  say "Claude Code:"
-  install_file "$REPO/claude/commands/enhance.md" "$CLAUDE_CMD" "$CLAUDE_CMD"
-  install_file "$REPO/claude/skills/enhance/SKILL.md" "$CLAUDE_SKILL" "$CLAUDE_SKILL"
+  section "Claude Code"
+  install_file "$REPO/claude/commands/enhance.md" "$CLAUDE_CMD"
+  install_file "$REPO/claude/skills/enhance/SKILL.md" "$CLAUDE_SKILL"
 fi
 
 if [ "$DO_COPILOT" -eq 1 ]; then
-  say "Copilot CLI ($RC):"
+  section "Copilot CLI"
   if [ -f "$RC" ] && grep -q "Prompt Enhancer" "$RC"; then
-    say "  = enhance() function already present — left untouched"
+    mark skip "enhance() already in $(tilde "$RC")" "left untouched"
   else
-    say "  + appending enhance() function"
     if [ "$DRY_RUN" -eq 0 ]; then
       { printf '\n'; cat "$REPO/copilot/enhance.zsh"; } >>"$RC"
     fi
+    mark new "enhance() $(verb 'added to' 'would be added to') $(tilde "$RC")" \
+      "$(verb "run: source $(tilde "$RC")" '')"
   fi
   command -v copilot >/dev/null 2>&1 || \
-    say "  ! 'copilot' is not on your PATH — install/authenticate GitHub Copilot CLI to use enhance()"
+    mark warn "'copilot' is not on your PATH $S_DASH install and log in to GitHub Copilot CLI to use enhance()"
 fi
 
 say ""
-say "Done."
-say "  Claude Code: /enhance write release notes   (new session), or just ask Claude to enhance a prompt"
-say "  Copilot CLI: source $RC   then   enhance write release notes"
+printf '%s%s%s %sDone%s\n' "$C_GREEN" "$S_OK" "$C_RESET" "$C_BOLD" "$C_RESET"
+printf '  %s Claude Code  %s/enhance write release notes%s  %s(new session, or just ask Claude for a better prompt)%s\n' \
+  "$S_ARROW" "$C_CYAN" "$C_RESET" "$C_DIM" "$C_RESET"
+printf '  %s Copilot CLI  %senhance write release notes%s\n' \
+  "$S_ARROW" "$C_CYAN" "$C_RESET"

@@ -32,7 +32,8 @@ later. Then it looks for problems that only you can fix:
 
 If it finds two rules that do not fit together, it always asks you. It never picks one in silence.
 
-**Step 2: it asks questions.** It only asks when your answer would change the result. Normal
+**Step 2: it asks questions.** They come under the header **A few questions first**. It only
+asks when your answer would change the result. Normal
 topics are: the goal, the reader, the important inputs, the hard limits, the format and the length,
 and what a good answer looks like. The number of questions depends on your prompt: about 3 to 5 if
 it is vague, few or none if it is already clear, and never more than 6. All questions come in one
@@ -40,8 +41,9 @@ numbered list, and each one gives you 2 or 3 options to choose from. In Claude C
 interactive question menu. If you cannot answer a question, it uses a sensible default and marks
 it `[ASSUMED]`. It never adds a rule that you did not confirm.
 
-**Step 3: it gives you the prompt.** You get one code block, written as instructions to the model,
-in this order: Role/Context, Task, Constraints, Output format, Success criteria. The prompt also:
+**Step 3: it gives you the prompt.** Under the label **▸ Enhanced prompt** you get one code block,
+written as instructions to the model, in this order: Role/Context, Task, Constraints, Output
+format, Success criteria. The prompt also:
 
 - **Can be reused.** Anything that changes each time becomes a named placeholder. Text that you
   paste in gets a clear label around it, for example `<transcript>…</transcript>` or
@@ -54,8 +56,11 @@ in this order: Role/Context, Task, Constraints, Output format, Success criteria.
 - **Keeps your intent.** All limits that you confirmed stay in the prompt. It only removes a rule
   when that rule conflicts with another one.
 
-Then it stops. You get the prompt, one line that tells you to copy it, and up to three tips to
-save tokens. Nothing else.
+Then it stops. After the code block you get one line, **→ Copy this into Claude, Copilot, or any
+model.**, and a short **⚡ To save tokens:** list with up to three tips. Nothing else.
+
+The symbols only appear around the prompt, never inside the code block. What you copy is always
+plain text.
 
 These rules come from other tools and from research: the
 [OpenAI prompt optimizer cookbook](https://developers.openai.com/cookbook/examples/optimize_prompts)
@@ -93,6 +98,11 @@ as a `*.bak` file first. It never deletes your changes without a copy.
 Do you already have an older version on your machine? Then go to
 [Update an installation that already exists](#update-an-installation-that-already-exists).
 
+The scripts use symbols and colour to show what happened: `✓` already correct, `+` new, `↻`
+replaced (with the backup name), `✗` removed, `•` nothing to do, `⚠` warning. Colour is only used
+in a terminal. When you send the output to a file or a log, or when you use `--no-color`, or when
+the `NO_COLOR` variable is set, you get plain text.
+
 Options:
 
 | Flag | What it does |
@@ -101,6 +111,7 @@ Options:
 | `--copilot-only` | Installs the shared file and the `enhance()` shell function only. |
 | `--rc <path>` | Writes the shell function into this file instead (default `~/.zshrc`, or `~/.bashrc` if you use bash). |
 | `--dry-run` | Only shows what would change. Writes nothing. |
+| `--no-color` | Plain text output, no colour. |
 
 ## Update an installation that already exists
 
@@ -185,9 +196,9 @@ Then run `source ~/.zshrc` to load it.
 ## Check that it works
 
 1. **Claude Code:** open a *new* session and run `/enhance write release notes`. It should ask you
-   a few questions with options, and then give you one short prompt in a code block. The prompt
-   should have placeholders, a "be concise" rule and a "To save tokens" list. It should not write
-   the release notes.
+   a few questions with options, and then show **▸ Enhanced prompt** with one short prompt in a
+   code block. The prompt should have placeholders and a "be concise" rule, followed by the copy
+   line and the **⚡ To save tokens:** list. It should not write the release notes.
 2. **Claude Code skill:** in a new session, write `make this prompt better: write release notes`.
    You should get the same result without a command.
 3. **Copilot CLI:** run `enhance write release notes`. An interactive session opens at low effort
@@ -219,7 +230,7 @@ All entry points use the new version at once. You do not need to change anything
 ./uninstall.sh --purge         # also deletes ~/.config/prompt-enhancer
 ```
 
-`--copilot-only`, `--rc <path>` and `--dry-run` also work here.
+`--copilot-only`, `--rc <path>`, `--dry-run` and `--no-color` also work here.
 
 The script saves a copy of your shell file before it changes it. It only removes the block that it
 added itself, marked with `# >>> Prompt Enhancer >>>`. If you added the function by hand in the

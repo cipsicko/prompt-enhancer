@@ -13,6 +13,7 @@ PURGE=0
 DRY_RUN=0
 DO_CLAUDE=1
 DO_COPILOT=1
+NO_COLOR_FLAG=0
 RC=""
 
 usage() {
@@ -25,6 +26,7 @@ Usage: ./uninstall.sh [options]
                    including any customizations)
   --rc <path>      Shell rc file to clean (default: ~/.zshrc, or ~/.bashrc when $SHELL is bash)
   --dry-run        Print what would be removed without touching anything
+  --no-color       Plain output, no colour (also honours the NO_COLOR env var)
   -h, --help       Show this help
 EOF
 }
@@ -33,11 +35,12 @@ while [ $# -gt 0 ]; do
   case "$1" in
     --claude-only)  DO_COPILOT=0 ;;
     --copilot-only) DO_CLAUDE=0 ;;
-    --purge)   PURGE=1 ;;
-    --dry-run) DRY_RUN=1 ;;
-    --rc)      shift; RC="${1:-}"; [ -n "$RC" ] || { echo "--rc needs a path" >&2; exit 1; } ;;
-    -h|--help) usage; exit 0 ;;
-    *)         echo "Unknown option: $1" >&2; usage >&2; exit 1 ;;
+    --purge)        PURGE=1 ;;
+    --dry-run)      DRY_RUN=1 ;;
+    --no-color)     NO_COLOR_FLAG=1 ;;
+    --rc)           shift; RC="${1:-}"; [ -n "$RC" ] || { echo "--rc needs a path" >&2; exit 1; } ;;
+    -h|--help)      usage; exit 0 ;;
+    *)              echo "Unknown option: $1" >&2; usage >&2; exit 1 ;;
   esac
   shift
 done
@@ -49,33 +52,76 @@ if [ -z "$RC" ]; then
   esac
 fi
 
+# ---------- presentation ----------
+
+if [ "$NO_COLOR_FLAG" -eq 0 ] && [ -t 1 ] && [ -z "${NO_COLOR:-}" ] && [ "${TERM:-}" != "dumb" ]; then
+  C_RESET=$'\033[0m'; C_BOLD=$'\033[1m'; C_DIM=$'\033[2m'
+  C_GREEN=$'\033[32m'; C_YELLOW=$'\033[33m'; C_RED=$'\033[31m'
+else
+  C_RESET=''; C_BOLD=''; C_DIM=''
+  C_GREEN=''; C_YELLOW=''; C_RED=''
+fi
+
+case "${LC_ALL:-${LC_CTYPE:-${LANG:-}}}" in
+  *UTF-8*|*utf-8*|*UTF8*|*utf8*)
+    S_OK='✓'; S_DEL='✗'; S_SKIP='•'; S_WARN='⚠'; S_ARROW='→'; S_DASH='—' ;;
+  *)
+    S_OK='[ok]'; S_DEL='[x]'; S_SKIP='[-]'; S_WARN='[!]'; S_ARROW='->'; S_DASH='-' ;;
+esac
+
 say() { printf '%s\n' "$1"; }
-run() { [ "$DRY_RUN" -eq 1 ] || "$@"; }
+section() { printf '%s%s%s\n' "$C_BOLD" "$1" "$C_RESET"; }
+tilde() { printf '%s' "${1/#$HOME/~}"; }
 
-[ "$DRY_RUN" -eq 1 ] && say "(dry run — nothing will be removed)"
-
-remove_path() {
-  local path="$1" flag="$2"
-  if [ -e "$path" ]; then
-    say "  - removing $path"
-    run rm $flag "$path"
+# mark <ok|del|skip|warn> <subject> [dim status]
+mark() {
+  local sym color
+  case "$1" in
+    ok)   sym="$S_OK";   color="$C_GREEN"  ;;
+    del)  sym="$S_DEL";  color="$C_RED"    ;;
+    skip) sym="$S_SKIP"; color="$C_DIM"    ;;
+    warn) sym="$S_WARN"; color="$C_YELLOW" ;;
+  esac
+  if [ -n "${3:-}" ]; then
+    printf '  %s%s%s %s  %s%s%s\n' "$color" "$sym" "$C_RESET" "$2" "$C_DIM" "$3" "$C_RESET"
   else
-    say "  = $path not present"
+    printf '  %s%s%s %s\n' "$color" "$sym" "$C_RESET" "$2"
   fi
 }
 
+run() { [ "$DRY_RUN" -eq 1 ] || "$@"; }
+
+# verb <what happened> <what would happen> — keeps dry-run output in the future tense
+verb() { if [ "$DRY_RUN" -eq 1 ]; then printf '%s' "$2"; else printf '%s' "$1"; fi; }
+
+# ---------- remove steps ----------
+
+remove_path() {
+  local path="$1" flag="$2" label
+  label="$(tilde "$path")"
+  if [ -e "$path" ]; then
+    run rm $flag "$path"
+    mark del "$label" "$(verb removed 'would be removed')"
+  else
+    mark skip "$label" "not present"
+  fi
+}
+
+printf '%sPrompt Enhancer %s uninstall%s\n' "$C_BOLD" "$S_DASH" "$C_RESET"
+[ "$DRY_RUN" -eq 1 ] && printf '%s(dry run %s nothing will be removed)%s\n' "$C_DIM" "$S_DASH" "$C_RESET"
+say ""
+
 if [ "$DO_CLAUDE" -eq 1 ]; then
-  say "Claude Code:"
+  section "Claude Code"
   remove_path "$CLAUDE_CMD" "-f"
   remove_path "$SKILL_DIR" "-rf"
 fi
 
 if [ "$DO_COPILOT" -eq 1 ]; then
-  say "Copilot CLI ($RC):"
+  section "Copilot CLI"
   if [ ! -f "$RC" ]; then
-    say "  = $RC not present"
+    mark skip "$(tilde "$RC")" "not present"
   elif grep -qF "$BEGIN" "$RC" && grep -qF "$END" "$RC"; then
-    say "  - stripping the marked enhance() block (backup: $RC.prompt-enhancer.bak)"
     if [ "$DRY_RUN" -eq 0 ]; then
       cp "$RC" "$RC.prompt-enhancer.bak"
       awk -v b="$BEGIN" -v e="$END" '
@@ -84,25 +130,30 @@ if [ "$DO_COPILOT" -eq 1 ]; then
         $0 == e { skip = 0 }
       ' "$RC.prompt-enhancer.bak" >"$RC"
     fi
+    mark del "enhance() in $(tilde "$RC")" \
+      "$(verb removed 'would be removed') (backup: $(basename "$RC").prompt-enhancer.bak)"
   elif grep -q "Prompt Enhancer" "$RC"; then
-    say "  ! found an unmarked (pre-installer) enhance() block — remove it by hand:"
-    grep -n "Prompt Enhancer" "$RC" | sed 's/^/      /'
-    say "      Delete the comment lines above plus the enhance() { ... } function that follows."
+    mark warn "$(tilde "$RC") has an older enhance() block that this script did not add"
+    grep -n "Prompt Enhancer" "$RC" | while IFS= read -r line; do
+      printf '    %s%s%s\n' "$C_DIM" "$line" "$C_RESET"
+    done
+    printf '    %sDelete those comment lines and the enhance() { ... } function below them.%s\n' \
+      "$C_DIM" "$C_RESET"
   else
-    say "  = no enhance() function found"
+    mark skip "enhance() in $(tilde "$RC")" "not found"
   fi
 fi
 
-say "Shared instructions:"
+section "Shared instructions"
 if [ "$PURGE" -eq 1 ]; then
   remove_path "$CONFIG_DIR" "-rf"
+elif [ -e "$CONFIG_DIR" ]; then
+  mark skip "$(tilde "$CONFIG_DIR")" "kept (use --purge to delete)"
 else
-  if [ -e "$CONFIG_DIR" ]; then
-    say "  = kept $CONFIG_DIR (re-run with --purge to delete it)"
-  else
-    say "  = $CONFIG_DIR not present"
-  fi
+  mark skip "$(tilde "$CONFIG_DIR")" "not present"
 fi
 
 say ""
-say "Done. Open a new terminal (or source $RC) to drop the enhance() function."
+printf '%s%s%s %sDone%s\n' "$C_GREEN" "$S_OK" "$C_RESET" "$C_BOLD" "$C_RESET"
+printf '  %s Open a new terminal, or run %ssource %s%s, to drop the enhance() function.\n' \
+  "$S_ARROW" "$C_DIM" "$(tilde "$RC")" "$C_RESET"

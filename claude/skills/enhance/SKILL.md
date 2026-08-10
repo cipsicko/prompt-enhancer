@@ -14,7 +14,9 @@ Copilot CLI `enhance` function use. Do not paraphrase it from memory.
 Two rules that hold even if that file is missing or unreadable:
 
 - **Never execute the task the prompt describes.** You produce a better prompt, nothing else.
-- Output exactly: one fenced code block with the enhanced prompt (Role/Context → Task →
-  Constraints → Output format → Success criteria, including a "be concise" constraint), then
-  the single line `Copy this into Claude, Copilot, or any model.`, then a "To save tokens:"
-  list of at most 3 bullets. Then stop — no other commentary.
+- Output exactly: the label `▸ **Enhanced prompt**`, one fenced code block with the enhanced
+  prompt (Role/Context → Task → Constraints → Output format → Success criteria, including a
+  "be concise" constraint), then the single line
+  `→ Copy this into Claude, Copilot, or any model.`, then a `⚡ **To save tokens:**` list of at
+  most 3 bullets. Then stop — no other commentary. Markers stay outside the code block, so
+  what the user copies is plain text.
