@@ -95,11 +95,21 @@ verb() { if [ "$DRY_RUN" -eq 1 ]; then printf '%s' "$2"; else printf '%s' "$1"; 
 
 # ---------- install steps ----------
 
-# Copy src -> dest, backing up an existing dest that differs.
+PLUGIN_DIR="$REPO/plugins/prompt-enhancer"
+
+# Copy src -> dest, backing up an existing dest that differs. If subst is set,
+# replace the literal string ${CLAUDE_PLUGIN_ROOT} with it first — the plugin's
+# own files reference that variable so they're self-contained when installed via
+# the Claude Code plugin marketplace, but a manual copy needs a real path.
 install_file() {
-  local src="$1" dest="$2" label
+  local src="$1" dest="$2" subst="${3:-}" label
   label="$(tilde "$dest")"
-  if [ -f "$dest" ] && cmp -s "$src" "$dest"; then
+  if [ -n "$subst" ]; then
+    if [ -f "$dest" ] && [ "$(sed "s|\${CLAUDE_PLUGIN_ROOT}|$subst|g" "$src")" = "$(cat "$dest")" ]; then
+      mark ok "$label" "up to date"
+      return
+    fi
+  elif [ -f "$dest" ] && cmp -s "$src" "$dest"; then
     mark ok "$label" "up to date"
     return
   fi
@@ -109,10 +119,14 @@ install_file() {
     bak="$dest.bak"
     while [ -e "$bak" ]; do n=$((n + 1)); bak="$dest.bak-$n"; done
     run cp "$dest" "$bak"
-    run cp "$src" "$dest"
+    if [ "$DRY_RUN" -eq 0 ]; then
+      if [ -n "$subst" ]; then sed "s|\${CLAUDE_PLUGIN_ROOT}|$subst|g" "$src" >"$dest"; else cp "$src" "$dest"; fi
+    fi
     mark upd "$label" "$(verb updated 'would be updated') (backup: $(basename "$bak"))"
   else
-    run cp "$src" "$dest"
+    if [ "$DRY_RUN" -eq 0 ]; then
+      if [ -n "$subst" ]; then sed "s|\${CLAUDE_PLUGIN_ROOT}|$subst|g" "$src" >"$dest"; else cp "$src" "$dest"; fi
+    fi
     mark new "$label" "$(verb installed 'would be installed')"
   fi
 }
@@ -122,12 +136,12 @@ printf '%sPrompt Enhancer%s\n' "$C_BOLD" "$C_RESET"
 say ""
 
 section "Shared instructions"
-install_file "$REPO/enhance.md" "$CONFIG_DIR/enhance.md"
+install_file "$PLUGIN_DIR/enhance.md" "$CONFIG_DIR/enhance.md"
 
 if [ "$DO_CLAUDE" -eq 1 ]; then
   section "Claude Code"
-  install_file "$REPO/claude/commands/enhance.md" "$CLAUDE_CMD"
-  install_file "$REPO/claude/skills/enhance/SKILL.md" "$CLAUDE_SKILL"
+  install_file "$PLUGIN_DIR/commands/enhance.md" "$CLAUDE_CMD" "$PLUGIN_DIR"
+  install_file "$PLUGIN_DIR/skills/enhance/SKILL.md" "$CLAUDE_SKILL" "$PLUGIN_DIR"
 fi
 
 if [ "$DO_COPILOT" -eq 1 ]; then

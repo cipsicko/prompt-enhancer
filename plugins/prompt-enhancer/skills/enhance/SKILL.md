@@ -5,7 +5,7 @@ description: Turns a rough prompt into one polished, reusable prompt — asks cl
 
 # Prompt Enhancer
 
-Read `~/.config/prompt-enhancer/enhance.md` and follow it verbatim. Treat the user's
+Read `${CLAUDE_PLUGIN_ROOT}/enhance.md` and follow it verbatim. Treat the user's
 request (minus the "enhance this" framing) as the rough prompt to enhance.
 
 That file is the single source of truth — the same one the `/enhance` command and the

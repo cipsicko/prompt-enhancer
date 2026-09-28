@@ -3,6 +3,8 @@
 A small tool that turns a rough prompt into a good prompt. It works in **Claude Code** and in
 **GitHub Copilot CLI**.
 
+<video src="media/video.mp4" controls width="100%"></video>
+
 **What it does.** You give it a rough idea of what you want to ask an AI. It asks you a few
 questions, and then it gives you one clear prompt that you can copy and paste. It does not do the
 task itself. You decide where the final prompt goes.
@@ -143,10 +145,17 @@ Good to know:
 
 | File in this repo | Goes to | What it is for |
 |---|---|---|
-| `enhance.md` | `~/.config/prompt-enhancer/enhance.md` | **The main file.** All three entry points read it. |
-| `claude/commands/enhance.md` | `~/.claude/commands/enhance.md` | The `/enhance` command |
-| `claude/skills/enhance/SKILL.md` | `~/.claude/skills/enhance/SKILL.md` | The skill, so Claude can start the enhancer without a command |
+| `plugins/prompt-enhancer/enhance.md` | `~/.config/prompt-enhancer/enhance.md` | **The main file.** All three entry points read it. |
+| `plugins/prompt-enhancer/commands/enhance.md` | `~/.claude/commands/enhance.md` | The `/enhance` command |
+| `plugins/prompt-enhancer/skills/enhance/SKILL.md` | `~/.claude/skills/enhance/SKILL.md` | The skill, so Claude can start the enhancer without a command |
 | `copilot/enhance.zsh` | added to the end of `~/.zshrc` | The `enhance` shell function |
+
+This repo is also a Claude Code plugin marketplace (`.claude-plugin/marketplace.json` +
+`plugins/prompt-enhancer/`). As an alternative to `install.sh` for the Claude Code side, run
+`/plugin marketplace add <path-or-url-to-this-repo>` then
+`/plugin install prompt-enhancer@prompt-enhancer` — the plugin is self-contained and works right
+away. Copilot CLI still needs `install.sh` (or the manual steps below), since it isn't part of the
+Claude Code plugin system.
 
 ### Command or skill?
 
@@ -157,24 +166,30 @@ it, and the skill helps you when you forget it.
 
 ## Install by hand (step by step)
 
-**Step 1 — the main file.** Copy `enhance.md` to `~/.config/prompt-enhancer/enhance.md`. This is
-the only file with the real instructions. When you change it, all entry points change too.
+**Step 1 — the main file.** Copy `plugins/prompt-enhancer/enhance.md` to
+`~/.config/prompt-enhancer/enhance.md`. This is the only file with the real instructions. When you
+change it, all entry points change too.
 
 **Step 2 — Claude Code.** Every `.md` file in `~/.claude/commands/` becomes a command. Copy
-`claude/commands/enhance.md` to that folder. It is a short file that loads the main file and adds
-your text:
+`plugins/prompt-enhancer/commands/enhance.md` to that folder. It is a short file that reads the
+main file and adds your text — replace `${CLAUDE_PLUGIN_ROOT}` with the absolute path to
+`plugins/prompt-enhancer` in this repo, since that variable only resolves for a real plugin
+install:
 
 ```markdown
 ---
 description: Turn a rough prompt into a polished, reusable prompt (asks clarifying questions first)
 ---
-@~/.config/prompt-enhancer/enhance.md
+Read /path/to/prompt-enhancer/plugins/prompt-enhancer/enhance.md and follow it verbatim.
 
 The rough prompt to enhance:
 $ARGUMENTS
 ```
 
-For the skill, copy `claude/skills/enhance/SKILL.md` to `~/.claude/skills/enhance/SKILL.md`.
+(`/path/to/prompt-enhancer` is where you cloned this repo — `install.sh` fills this in for you.)
+
+For the skill, copy `plugins/prompt-enhancer/skills/enhance/SKILL.md` to
+`~/.claude/skills/enhance/SKILL.md`, making the same replacement.
 
 **Step 3 — Copilot CLI.** Copilot CLI cannot have custom commands yet. So we add a small shell
 function. It opens an interactive Copilot session that already contains the instructions, so
@@ -208,7 +223,7 @@ Then run `source ~/.zshrc` to load it.
 
 | Problem | Solution |
 |---|---|
-| `/enhance` ignores the instructions and just answers your question | Claude did not load the `@` file. Copy the full text of `~/.config/prompt-enhancer/enhance.md` into `~/.claude/commands/enhance.md`, above the `$ARGUMENTS` line. |
+| `/enhance` ignores the instructions and just answers your question | Claude did not read the main file. Check that `~/.claude/commands/enhance.md` points at a real path (not a leftover `${CLAUDE_PLUGIN_ROOT}`) and that the file it points to exists. |
 | The skill never starts | The skill reacts to your words, so try: "enhance this prompt", "improve my prompt", "rewrite my prompt", "write me a prompt for X", "turn this into a reusable prompt". Also check that `~/.claude/skills/enhance/SKILL.md` exists, and start a new session. |
 | `enhance: command not found` | You did not reload the shell. Run `source ~/.zshrc` or open a new terminal. |
 | `copilot: command not found` when you run `enhance` | Install GitHub Copilot CLI, log in, and make sure the `copilot` command works in your terminal. |
@@ -218,9 +233,9 @@ Then run `source ~/.zshrc` to load it.
 
 You can change how the enhancer works: how many questions it asks, which problems it looks for,
 the structure of the result, the tone, when it asks the model to think first, and the token rules.
-Edit `enhance.md` in this repository and run `./install.sh` again. You can also edit
-`~/.config/prompt-enhancer/enhance.md` directly, if you only want to change it on this machine.
-All entry points use the new version at once. You do not need to change anything else.
+Edit `plugins/prompt-enhancer/enhance.md` in this repository and run `./install.sh` again. You can
+also edit `~/.config/prompt-enhancer/enhance.md` directly, if you only want to change it on this
+machine. All entry points use the new version at once. You do not need to change anything else.
 
 ## Uninstall
 
