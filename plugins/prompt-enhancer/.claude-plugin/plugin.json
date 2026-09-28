@@ -1,0 +1,7 @@
+{
+  "name": "prompt-enhancer",
+  "description": "Turns a rough prompt into one polished, reusable prompt — asks clarifying questions first, then returns a single copy-pasteable prompt and stops without executing the task.",
+  "version": "0.1.0",
+  "author": { "name": "Martino Perez" },
+  "license": "MIT"
+}

@@ -1,5 +1,8 @@
 #!/usr/bin/env bash
 # Prompt Enhancer uninstaller.
+# Only undoes what install.sh did. If you installed the Claude Code side via
+# `/plugin install` instead, use `/plugin uninstall` for that — this script
+# doesn't know about plugin-marketplace installs.
 set -euo pipefail
 
 CONFIG_DIR="$HOME/.config/prompt-enhancer"
